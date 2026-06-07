@@ -50,6 +50,14 @@ export default function AjustesPage() {
   useEffect(() => {
     setMounted(true)
 
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('auth_code')
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(() => {
+        window.history.replaceState({}, '', window.location.pathname)
+      })
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setAuthLoading(false)
