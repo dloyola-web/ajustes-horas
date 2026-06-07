@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { PlusCircle, Clock, Search, ChevronDown } from 'lucide-react'
+import { PlusCircle, Clock, Search, ChevronDown, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { RegistroView } from '@/components/RegistroView'
 import { HistoricoView } from '@/components/HistoricoView'
+import { LoginView } from '@/components/LoginView'
 import { Colaborador } from '@/types'
 import { defaultPeriod, emailLocalPart, wasActiveInMonth } from '@/lib/utils'
 import { cn } from '@/lib/cn'
+import type { User } from '@supabase/supabase-js'
 
 function upsertColaboradorByLocal(
   map: Map<string, Colaborador>,
@@ -42,8 +44,27 @@ export default function AjustesPage() {
   const [correoPeriodo, setCorreoPeriodo] = useState(defaultPeriod)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    setMounted(true)
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setAuthLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+  }
 
   const loadOfficialCorreos = useCallback(async (mes: string) => {
     const { data, error } = await supabase
@@ -125,6 +146,8 @@ export default function AjustesPage() {
   }
 
   if (!mounted) return null
+  if (authLoading) return null
+  if (!user) return <LoginView />
 
   return (
     <div className="flex min-h-[100dvh] w-full bg-zinc-50/50 selection:bg-brand-primary/20">
@@ -187,6 +210,29 @@ export default function AjustesPage() {
             <ChevronDown className="h-3.5 w-3.5 text-white/30 group-hover:text-white/50 transition-colors" />
           </button>
         </nav>
+
+        {/* User footer */}
+        <div className="mx-5 h-px bg-white/5" />
+        <div className="px-4 py-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white text-xs font-bold uppercase shrink-0">
+            {user.email?.charAt(0) ?? 'U'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white/90 truncate leading-tight">
+              {user.email?.split('@')[0] ?? 'Usuario'}
+            </p>
+            <p className="text-[11px] text-white/30 truncate leading-tight mt-0.5">
+              {user.email ?? ''}
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="text-white/30 hover:text-white/60 transition-colors shrink-0"
+            title="Cerrar sesión"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </aside>
 
       {/* MAIN CONTENT AREA */}
